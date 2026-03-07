@@ -1,0 +1,164 @@
+:root {
+  --bg: #f4f7fb;
+  --card: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #d7dee8;
+  --ok: #15803d;
+  --fail: #b91c1c;
+  --warn: #92400e;
+  --brand: #0f766e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Arial", sans-serif;
+  background: radial-gradient(circle at top right, #e2f5f4 0, transparent 35%), var(--bg);
+  color: var(--ink);
+}
+
+.container {
+  max-width: 1240px;
+  margin: 24px auto 40px;
+  padding: 0 16px;
+}
+
+h1, h2 {
+  margin: 0 0 12px;
+}
+
+.subtitle {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+input, select, button, textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  font-size: 14px;
+}
+
+button {
+  cursor: pointer;
+  background: linear-gradient(90deg, #0f766e, #0d9488);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+button.secondary {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-ok { background: #dcfce7; color: var(--ok); }
+.status-fail { background: #fee2e2; color: var(--fail); }
+.status-rev { background: #fef3c7; color: var(--warn); }
+
+#diagramWrap {
+  overflow: auto;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+#sequenceSvg {
+  min-width: 1100px;
+}
+
+.event-log {
+  max-height: 260px;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  background: #0b1220;
+  color: #d7e2f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.event-log p {
+  margin: 0 0 6px;
+}
+
+.nav {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.nav a {
+  text-decoration: none;
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.legend {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.dot.ok { background: var(--ok); }
+.dot.fail { background: var(--fail); }
+.dot.rev { background: var(--warn); }
+
+@media (max-width: 920px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+

@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: dips-simulator
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/dips}
+    username: ${SPRING_DATASOURCE_USERNAME:dips}
+    password: ${SPRING_DATASOURCE_PASSWORD:dips}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+dips:
+  scheduler:
+    small-value-threshold: 500.00
+    high-load-normal-pause-ms: 1200
+    high-burst-before-normal: 3
+  sms:
+    aes-key-base64: ${DIPS_SMS_AES_KEY_BASE64:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
+    max-skew-seconds: 300

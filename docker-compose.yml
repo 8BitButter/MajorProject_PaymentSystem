@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: dips-postgres
+    environment:
+      POSTGRES_DB: dips
+      POSTGRES_USER: dips
+      POSTGRES_PASSWORD: dips
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    container_name: dips-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dips
+      SPRING_DATASOURCE_USERNAME: dips
+      SPRING_DATASOURCE_PASSWORD: dips
+      DIPS_SMS_AES_KEY_BASE64: MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  pg_data:
+
