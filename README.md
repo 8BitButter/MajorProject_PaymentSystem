@@ -14,6 +14,14 @@ Web-first, simulation-only UPI-inspired push payment platform with:
 docker compose up --build
 ```
 
+This compose setup now uses PostgreSQL 17 (works with 17.4).
+If you previously ran with PostgreSQL 16, recreate the DB volume once:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
 Open:
 - `http://localhost:8080/` payer console
 - `http://localhost:8080/payee.html` payee console
@@ -26,6 +34,21 @@ Prereqs: Java 21, Maven.
 ```bash
 cd backend
 mvn spring-boot:run
+```
+
+For local PostgreSQL (including 17.4), the app uses schema `dips_app` by default
+to avoid `public` schema permission issues. Override with:
+
+```bash
+set DIPS_DB_SCHEMA=public
+```
+
+For local runs, the app now picks a free HTTP port automatically.
+Check startup logs for `Tomcat started on port(s): ...` and open that port.
+To force a fixed port, set:
+
+```bash
+set SERVER_PORT=8080
 ```
 
 If PostgreSQL is not running locally on `localhost:5432`, start only postgres via docker first:

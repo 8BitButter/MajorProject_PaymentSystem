@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     container_name: dips-postgres
     environment:
       POSTGRES_DB: dips
@@ -16,6 +16,7 @@ services:
       context: ./backend
     container_name: dips-backend
     environment:
+      SERVER_PORT: 8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dips
       SPRING_DATASOURCE_USERNAME: dips
       SPRING_DATASOURCE_PASSWORD: dips
