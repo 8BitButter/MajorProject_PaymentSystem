@@ -3,86 +3,105 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DIPS Simulator - Payer Console</title>
+  <title>DIPS Push Flow Simulator</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
 <div class="container">
-  <div class="nav">
-    <a href="/">Payer Console</a>
-    <a href="/payee.html">Payee Console</a>
-    <a href="/admin.html">Admin Console</a>
-  </div>
-  <h1>Payer Console</h1>
-  <p class="subtitle">Initiate push payment and watch deterministic phase progression in animated sequence view.</p>
+  <header class="hero">
+    <h1>DIPS Push-Flow Simulator</h1>
+    <p>Deterministic stage-by-stage payment simulation with live failure handling and delayed animation.</p>
+  </header>
 
-  <div class="row">
-    <div class="card">
-      <h2>Initiate Payment</h2>
-      <div class="grid-2">
-        <div>
-          <label>Client Request ID</label>
-          <input id="clientRequestId" value="demo-req-001" />
+  <section class="panel-grid">
+    <article class="panel">
+      <h2>Payer Panel</h2>
+      <label>Client Request ID</label>
+      <input id="clientRequestId" value="demo-req-001" />
+      <label>Payer VPA</label>
+      <input id="payerVpa" value="payer@issuer" />
+      <label>Payee VPA</label>
+      <input id="payeeVpa" value="payee@acquirer" />
+      <label>Amount</label>
+      <input id="amount" type="number" step="0.01" value="120.00" />
+      <label>MPIN</label>
+      <input id="mpin" type="password" value="1111" />
+      <div class="btn-row">
+        <button id="startBtn">Initiate Push</button>
+        <button id="offlineBtn" class="secondary">Offline SMS</button>
+        <button id="refreshTxBtn" class="secondary">Refresh Tx</button>
+      </div>
+      <label>Transaction ID</label>
+      <input id="txId" readonly />
+      <p class="pill" id="txState">IDLE</p>
+    </article>
+
+    <article class="panel">
+      <h2>Admin Panel</h2>
+      <div class="subcard">
+        <h3>Failures</h3>
+        <div class="check-grid">
+          <label><input type="checkbox" class="failureToggle" data-scenario="VALIDATION_FAIL" /> VALIDATION_FAIL</label>
+          <label><input type="checkbox" class="failureToggle" data-scenario="SWITCH_FAIL" /> SWITCH_FAIL</label>
+          <label><input type="checkbox" class="failureToggle" data-scenario="DEBIT_FAIL" /> DEBIT_FAIL</label>
+          <label><input type="checkbox" class="failureToggle" data-scenario="CREDIT_FAIL" /> CREDIT_FAIL</label>
+          <label><input type="checkbox" class="failureToggle" data-scenario="REVERSAL_FAIL" /> REVERSAL_FAIL</label>
         </div>
-        <div>
-          <label>Amount</label>
-          <input id="amount" type="number" step="0.01" value="120.00" />
-        </div>
-        <div>
-          <label>Payer VPA</label>
-          <input id="payerVpa" value="payer@issuer" />
-        </div>
-        <div>
-          <label>Payee VPA</label>
-          <input id="payeeVpa" value="payee@acquirer" />
-        </div>
       </div>
-      <div style="margin-top: 10px">
-        <label>MPIN</label>
-        <input id="mpin" type="password" value="1111" />
+      <div class="subcard">
+        <h3>Delay Profile</h3>
+        <label>Base Delay (ms)</label>
+        <input id="baseDelayMs" type="number" min="0" value="350" />
+        <label>Jitter (ms)</label>
+        <input id="jitterMs" type="number" min="0" value="250" />
+        <button id="saveDelayBtn">Save Delay Profile</button>
       </div>
-      <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
-        <button id="startBtn">Start Push Payment</button>
-        <button id="offlineBtn" class="secondary">Start Offline SMS Payment</button>
+      <div class="subcard">
+        <h3>Account Query</h3>
+        <label>User VPA (optional)</label>
+        <input id="queryUserVpa" placeholder="payer@issuer" />
+        <label>Bank Type</label>
+        <select id="queryBankType">
+          <option value="">ALL</option>
+          <option value="ISSUER">ISSUER</option>
+          <option value="ACQUIRER">ACQUIRER</option>
+        </select>
+        <button id="queryAccountsBtn" class="secondary">Run Query</button>
+        <pre id="accountDump" class="mono-box"></pre>
       </div>
-      <div style="margin-top: 10px">
-        <button class="secondary" id="refreshBtn">Refresh Current Tx</button>
-      </div>
-      <div style="margin-top: 12px">
-        <label>Current Transaction ID</label>
-        <input id="txId" readonly />
-      </div>
-      <div style="margin-top: 12px">
-        <span id="statusPill" class="status-pill">IDLE</span>
+    </article>
+
+    <article class="panel">
+      <h2>Payee Panel</h2>
+      <p id="payeeLatest">No recipient events yet.</p>
+      <div class="pill neutral" id="payeeConn">DISCONNECTED</div>
+      <h3>Recipient Stream</h3>
+      <div id="payeeLog" class="mono-box scroll"></div>
+    </article>
+  </section>
+
+  <section class="flow-section">
+    <div class="flow-head">
+      <h2>Dataflow Diagram</h2>
+      <div class="flow-controls">
+        <button id="pauseBtn" class="secondary">Pause</button>
+        <button id="resumeBtn" class="secondary">Resume</button>
+        <label>Speed</label>
+        <select id="speedFactor">
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="2">2x</option>
+          <option value="3">3x</option>
+        </select>
       </div>
     </div>
+    <svg id="flowSvg" width="1200" height="320" viewBox="0 0 1200 320"></svg>
+  </section>
 
-    <div class="card">
-      <h2>Sequence Legend</h2>
-      <div class="legend">
-        <span><span class="dot ok"></span>Success path</span>
-        <span><span class="dot fail"></span>Failure path</span>
-        <span><span class="dot rev"></span>Reversal path</span>
-      </div>
-      <p class="subtitle" style="margin-top:10px">WebSocket channels:</p>
-      <div class="event-log">
-        <p>Transaction stream: <code>/ws/transactions/{txId}</code></p>
-        <p>User stream: <code>/ws/users/{payerVpa}</code></p>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px">
-    <h2>Animated Payment Flow</h2>
-    <div id="diagramWrap">
-      <svg id="sequenceSvg" width="1150" height="520"></svg>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px">
-    <h2>Event Timeline</h2>
-    <div id="eventLog" class="event-log"></div>
-  </div>
+  <section class="panel">
+    <h2>Transaction Timeline</h2>
+    <div id="timelineLog" class="mono-box scroll tall"></div>
+  </section>
 </div>
 <script src="/app.js"></script>
 </body>

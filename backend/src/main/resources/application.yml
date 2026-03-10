@@ -30,7 +30,11 @@ management:
         include: health,info,metrics,prometheus
 
 dips:
+  delay:
+    base-ms: 350
+    jitter-ms: 250
   scheduler:
+    enabled: true
     small-value-threshold: 500.00
     high-load-normal-pause-ms: 1200
     high-burst-before-normal: 3

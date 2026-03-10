@@ -32,6 +32,9 @@ public class TransactionEntity {
     @Column(name = "payee_vpa", nullable = false, length = 128)
     private String payeeVpa;
 
+    @Column(name = "payer_mpin", nullable = false, length = 16)
+    private String payerMpin;
+
     @Column(nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
 
@@ -92,6 +95,14 @@ public class TransactionEntity {
         this.payeeVpa = payeeVpa;
     }
 
+    public String getPayerMpin() {
+        return payerMpin;
+    }
+
+    public void setPayerMpin(String payerMpin) {
+        this.payerMpin = payerMpin;
+    }
+
     public BigDecimal getAmount() {
         return amount;
     }
@@ -140,4 +151,3 @@ public class TransactionEntity {
         this.updatedAt = updatedAt;
     }
 }
-

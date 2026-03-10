@@ -1,57 +1,105 @@
-const participants = [
-  { name: "Payer", x: 70 },
-  { name: "UPI App", x: 210 },
-  { name: "PSP", x: 360 },
-  { name: "Switch", x: 510 },
-  { name: "Issuer", x: 660 },
-  { name: "Acquirer", x: 810 },
-  { name: "PSP(Payee)", x: 960 },
-  { name: "Payee App", x: 1100 }
+const nodes = [
+  { id: "INITIATE", label: "Initiate", x: 70, y: 150 },
+  { id: "VALIDATE", label: "Validate", x: 250, y: 150 },
+  { id: "ROUTE", label: "Route", x: 430, y: 150 },
+  { id: "DEBIT", label: "Debit", x: 610, y: 150 },
+  { id: "CREDIT", label: "Credit", x: 790, y: 150 },
+  { id: "REVERSAL", label: "Reversal", x: 970, y: 220 },
+  { id: "TERMINAL", label: "Terminal", x: 1120, y: 150 }
 ];
 
-const svg = document.getElementById("sequenceSvg");
-const eventLogEl = document.getElementById("eventLog");
-const statusPill = document.getElementById("statusPill");
+const edgeMap = {
+  INITIATE: ["INITIATE", "VALIDATE"],
+  VALIDATE: ["VALIDATE", "ROUTE"],
+  ROUTE: ["ROUTE", "DEBIT"],
+  DEBIT: ["DEBIT", "CREDIT"],
+  CREDIT: ["CREDIT", "TERMINAL"],
+  REVERSAL: ["REVERSAL", "TERMINAL"]
+};
+
+const flowSvg = document.getElementById("flowSvg");
+const timelineLog = document.getElementById("timelineLog");
+const payeeLog = document.getElementById("payeeLog");
+const txState = document.getElementById("txState");
+const payeeLatest = document.getElementById("payeeLatest");
+const payeeConn = document.getElementById("payeeConn");
+
 let txSocket = null;
-let rowY = 110;
-let seen = new Set();
+let payeeSocket = null;
+let currentTxId = null;
+let seenSteps = new Set();
+let eventQueue = [];
+let processingQueue = false;
+let paused = false;
+let speedFactor = 1;
 
-initDiagram();
+initFlowSvg();
+bindUi();
+loadDelayProfile();
 
-document.getElementById("startBtn").addEventListener("click", startPayment);
-document.getElementById("offlineBtn").addEventListener("click", startOfflinePayment);
-document.getElementById("refreshBtn").addEventListener("click", refreshCurrentTransaction);
+function bindUi() {
+  document.getElementById("startBtn").addEventListener("click", startPush);
+  document.getElementById("offlineBtn").addEventListener("click", startOfflineSms);
+  document.getElementById("refreshTxBtn").addEventListener("click", refreshCurrentTx);
+  document.getElementById("pauseBtn").addEventListener("click", () => { paused = true; });
+  document.getElementById("resumeBtn").addEventListener("click", () => {
+    paused = false;
+    processQueue();
+  });
+  document.getElementById("speedFactor").addEventListener("change", (e) => {
+    speedFactor = parseFloat(e.target.value);
+  });
+  document.getElementById("queryAccountsBtn").addEventListener("click", queryAccounts);
+  document.getElementById("saveDelayBtn").addEventListener("click", saveDelayProfile);
 
-async function startPayment() {
+  document.querySelectorAll(".failureToggle").forEach((checkbox) => {
+    checkbox.addEventListener("change", async () => {
+      const scenario = checkbox.dataset.scenario;
+      const mode = checkbox.checked ? "enable" : "disable";
+      await fetch(`/api/v1/admin/failures/${scenario}/${mode}`, { method: "POST" });
+    });
+  });
+}
+
+async function startPush() {
+  resetFlowView();
   const payload = {
-    clientRequestId: document.getElementById("clientRequestId").value,
-    payerVpa: document.getElementById("payerVpa").value,
-    payeeVpa: document.getElementById("payeeVpa").value,
+    clientRequestId: document.getElementById("clientRequestId").value.trim(),
+    payerVpa: document.getElementById("payerVpa").value.trim(),
+    payeeVpa: document.getElementById("payeeVpa").value.trim(),
     amount: parseFloat(document.getElementById("amount").value),
     mpin: document.getElementById("mpin").value
   };
-  const res = await fetch("/api/payments/push", {
+
+  const res = await fetch("/api/v1/payer/push", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
   const data = await res.json();
   if (!res.ok) {
-    appendLog(`ERROR ${JSON.stringify(data)}`);
+    appendTimeline(`ERROR: ${JSON.stringify(data)}`);
+    txState.textContent = "ERROR";
+    txState.className = "pill fail";
     return;
   }
-  document.getElementById("txId").value = data.transactionId;
-  updatePill(data.state);
-  resetDiagramRows();
-  connectTransactionSocket(data.transactionId);
-  await loadEvents(data.transactionId);
+
+  currentTxId = data.transactionId;
+  document.getElementById("txId").value = currentTxId;
+  txState.textContent = data.state;
+  txState.className = "pill neutral";
+
+  connectTxSocket(currentTxId);
+  connectPayeeSocket(payload.payeeVpa);
+  await loadTimeline(currentTxId);
 }
 
-async function startOfflinePayment() {
-  const payload = {
-    clientRequestId: document.getElementById("clientRequestId").value + "-offline",
-    payerVpa: document.getElementById("payerVpa").value,
-    payeeVpa: document.getElementById("payeeVpa").value,
+async function startOfflineSms() {
+  resetFlowView();
+  const pushPayload = {
+    clientRequestId: `${document.getElementById("clientRequestId").value.trim()}-offline`,
+    payerVpa: document.getElementById("payerVpa").value.trim(),
+    payeeVpa: document.getElementById("payeeVpa").value.trim(),
     amount: parseFloat(document.getElementById("amount").value),
     mpin: document.getElementById("mpin").value
   };
@@ -60,12 +108,17 @@ async function startOfflinePayment() {
   const key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const messageId = `sms-${crypto.randomUUID()}`;
-  const encoded = new TextEncoder().encode(JSON.stringify(payload));
-  const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(messageId) }, key, encoded);
+  const payloadBytes = new TextEncoder().encode(JSON.stringify(pushPayload));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(messageId) },
+    key,
+    payloadBytes
+  );
+
   const req = {
     messageId,
     ivBase64: btoa(String.fromCharCode(...iv)),
-    cipherTextBase64: btoa(String.fromCharCode(...new Uint8Array(cipher))),
+    cipherTextBase64: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
     timestampEpochSeconds: Math.floor(Date.now() / 1000)
   };
   const res = await fetch("/api/offline/sms/submit", {
@@ -75,169 +128,245 @@ async function startOfflinePayment() {
   });
   const data = await res.json();
   if (!res.ok || !data.accepted) {
-    appendLog(`OFFLINE ERROR ${JSON.stringify(data)}`);
+    appendTimeline(`OFFLINE ERROR: ${JSON.stringify(data)}`);
     return;
   }
-  document.getElementById("txId").value = data.transactionId;
-  resetDiagramRows();
-  connectTransactionSocket(data.transactionId);
-  await loadEvents(data.transactionId);
+
+  currentTxId = data.transactionId;
+  document.getElementById("txId").value = currentTxId;
+  txState.textContent = "OFFLINE_ACCEPTED";
+  txState.className = "pill neutral";
+  connectTxSocket(currentTxId);
+  connectPayeeSocket(pushPayload.payeeVpa);
+  await loadTimeline(currentTxId);
 }
 
-async function refreshCurrentTransaction() {
+async function refreshCurrentTx() {
   const txId = document.getElementById("txId").value.trim();
   if (!txId) return;
-  await loadEvents(txId);
-  const res = await fetch(`/api/payments/${txId}`);
+  await loadTimeline(txId);
+  const res = await fetch(`/api/v1/transactions/${txId}`);
   if (res.ok) {
     const tx = await res.json();
-    updatePill(tx.state);
+    updateTerminalPill(tx.state);
   }
 }
 
-function connectTransactionSocket(txId) {
+function connectTxSocket(txId) {
   if (txSocket) txSocket.close();
-  const protocol = location.protocol === "https:" ? "wss" : "ws";
-  txSocket = new WebSocket(`${protocol}://${location.host}/ws/transactions/${txId}`);
+  const wsProto = location.protocol === "https:" ? "wss" : "ws";
+  txSocket = new WebSocket(`${wsProto}://${location.host}/ws/transactions/${encodeURIComponent(txId)}`);
+  txSocket.onopen = () => appendTimeline(`WS tx connected: ${txId}`);
+  txSocket.onclose = () => appendTimeline("WS tx disconnected");
   txSocket.onmessage = (evt) => {
     const msg = JSON.parse(evt.data);
-    renderEvent(msg);
+    if (msg.eventType !== "STAGE_DECISION") return;
+    enqueueStageEvent(msg);
   };
-  txSocket.onopen = () => appendLog(`WS connected for tx ${txId}`);
-  txSocket.onclose = () => appendLog(`WS disconnected`);
 }
 
-async function loadEvents(txId) {
-  const res = await fetch(`/api/payments/${txId}/events`);
+function connectPayeeSocket(payeeVpa) {
+  if (payeeSocket) payeeSocket.close();
+  const wsProto = location.protocol === "https:" ? "wss" : "ws";
+  payeeSocket = new WebSocket(`${wsProto}://${location.host}/ws/users/${encodeURIComponent(payeeVpa)}`);
+  payeeSocket.onopen = () => {
+    payeeConn.textContent = "CONNECTED";
+    payeeConn.className = "pill ok";
+  };
+  payeeSocket.onclose = () => {
+    payeeConn.textContent = "DISCONNECTED";
+    payeeConn.className = "pill neutral";
+  };
+  payeeSocket.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    if (msg.eventType !== "STAGE_DECISION") return;
+    const stage = msg.stage || "UNKNOWN";
+    payeeLatest.textContent = `Latest recipient event: ${stage} (${msg.status})`;
+    prepend(payeeLog, `${msg.endedAt || msg.createdAt} | ${stage} | ${msg.reason}`);
+  };
+}
+
+async function loadTimeline(txId) {
+  const res = await fetch(`/api/v1/transactions/${txId}/timeline`);
   if (!res.ok) return;
-  const events = await res.json();
-  for (const e of events) {
-    renderEvent({
-      transactionId: txId,
-      fromState: e.fromState,
-      toState: e.toState,
-      actor: e.actor,
-      reason: e.reason,
-      createdAt: e.createdAt
-    });
+  const steps = await res.json();
+  steps.forEach((step) => enqueueStageEvent({
+    eventType: "STAGE_DECISION",
+    stepId: step.id,
+    transactionId: txId,
+    stage: step.stage,
+    status: step.status,
+    actor: step.actor,
+    reason: step.reason,
+    nextStage: step.nextStage,
+    processingMs: step.processingMs,
+    branch: step.branch,
+    startedAt: step.startedAt,
+    endedAt: step.endedAt
+  }));
+}
+
+function enqueueStageEvent(evt) {
+  const key = evt.stepId ? String(evt.stepId) : `${evt.stage}|${evt.endedAt}|${evt.reason}`;
+  if (seenSteps.has(key)) return;
+  seenSteps.add(key);
+  eventQueue.push(evt);
+  processQueue();
+}
+
+async function processQueue() {
+  if (processingQueue || paused || eventQueue.length === 0) return;
+  processingQueue = true;
+  const evt = eventQueue.shift();
+  const stage = evt.stage;
+  const delay = Math.max(80, Math.floor((evt.processingMs || 250) / speedFactor));
+
+  setNodeState(stage, "active");
+  highlightEdge(stage, evt.status, evt.branch);
+  appendTimeline(`${evt.endedAt || evt.createdAt} | ${stage} | ${evt.status} | ${evt.reason}`);
+
+  await wait(delay);
+
+  setNodeState(stage, evt.status === "FAIL" ? "fail" : "done");
+  if (stage === "TERMINAL" || evt.nextStage === "TERMINAL" || evt.status === "FAIL") {
+    updateTerminalPill(evt.reason.includes("success") || evt.reason.includes("completed") ? "COMPLETED" : "FAILED");
   }
+  processingQueue = false;
+  processQueue();
 }
 
-function renderEvent(msg) {
-  const k = `${msg.createdAt}|${msg.toState}|${msg.reason}`;
-  if (seen.has(k)) return;
-  seen.add(k);
-  const edge = edgeForState(msg.toState);
-  if (edge) drawEdge(edge.from, edge.to, `${msg.toState} - ${msg.reason}`, edge.color);
-  appendLog(`${msg.createdAt}  ${msg.toState}  [${msg.actor}] ${msg.reason}`);
-  updatePill(msg.toState);
-}
-
-function edgeForState(state) {
-  switch (state) {
-    case "CREATED": return { from: 0, to: 1, color: "#0f766e" };
-    case "OFFLINE_QUEUED": return { from: 0, to: 1, color: "#0f766e" };
-    case "OFFLINE_RECEIVED": return { from: 1, to: 2, color: "#0f766e" };
-    case "OFFLINE_DECRYPTED": return { from: 1, to: 2, color: "#0f766e" };
-    case "VALIDATION_PASSED": return { from: 1, to: 2, color: "#0f766e" };
-    case "ROUTED_TO_SWITCH": return { from: 2, to: 3, color: "#0f766e" };
-    case "DEBIT_REQUESTED": return { from: 3, to: 4, color: "#0f766e" };
-    case "DEBIT_FAILED": return { from: 4, to: 2, color: "#b91c1c" };
-    case "FAILED_PRE_DEBIT": return { from: 2, to: 0, color: "#b91c1c" };
-    case "DEBIT_SUCCESS": return { from: 4, to: 3, color: "#15803d" };
-    case "CREDIT_REQUESTED": return { from: 3, to: 5, color: "#15803d" };
-    case "CREDIT_FAILED": return { from: 5, to: 3, color: "#b91c1c" };
-    case "REVERSAL_REQUESTED": return { from: 3, to: 4, color: "#92400e" };
-    case "REVERSED": return { from: 4, to: 0, color: "#92400e" };
-    case "COMPLETED": return { from: 5, to: 7, color: "#15803d" };
-    default: return null;
-  }
-}
-
-function initDiagram() {
-  svg.innerHTML = `
+function initFlowSvg() {
+  flowSvg.innerHTML = `
     <defs>
-      <marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
-        <path d="M0,0 L8,4 L0,8 z" fill="#334155"></path>
+      <marker id="arrowOk" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#0f766e"></path>
+      </marker>
+      <marker id="arrowFail" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#b91c1c"></path>
+      </marker>
+      <marker id="arrowRev" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#a16207"></path>
       </marker>
     </defs>
   `;
-  for (const p of participants) {
-    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    t.setAttribute("x", p.x - 35);
-    t.setAttribute("y", "28");
-    t.setAttribute("font-size", "12");
-    t.setAttribute("font-weight", "700");
-    t.textContent = p.name;
-    svg.appendChild(t);
 
-    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    l.setAttribute("x1", p.x);
-    l.setAttribute("x2", p.x);
-    l.setAttribute("y1", "40");
-    l.setAttribute("y2", "500");
-    l.setAttribute("stroke", "#cbd5e1");
-    l.setAttribute("stroke-dasharray", "6 4");
-    svg.appendChild(l);
-  }
+  nodes.forEach((n) => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("id", `node-${n.id}`);
+    g.setAttribute("class", "flow-node");
+
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", String(n.x - 54));
+    rect.setAttribute("y", String(n.y - 28));
+    rect.setAttribute("rx", "12");
+    rect.setAttribute("ry", "12");
+    rect.setAttribute("width", "108");
+    rect.setAttribute("height", "56");
+    rect.setAttribute("class", "node-box");
+    g.appendChild(rect);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", String(n.x));
+    text.setAttribute("y", String(n.y + 5));
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "node-label");
+    text.textContent = n.label;
+    g.appendChild(text);
+    flowSvg.appendChild(g);
+  });
 }
 
-function drawEdge(fromIndex, toIndex, label, color) {
-  if (rowY > 490) {
-    rowY = 110;
-    clearDynamicEdges();
-  }
-  const x1 = participants[fromIndex].x;
-  const x2 = participants[toIndex].x;
+function highlightEdge(stage, status, branch) {
+  const edge = edgeMap[stage];
+  if (!edge) return;
+  const from = nodes.find((n) => n.id === edge[0]);
+  const to = nodes.find((n) => n.id === edge[1]);
+  if (!from || !to) return;
+
+  const color = branch === "REVERSAL" ? "#a16207" : status === "FAIL" ? "#b91c1c" : "#0f766e";
+  const marker = branch === "REVERSAL" ? "url(#arrowRev)" : status === "FAIL" ? "url(#arrowFail)" : "url(#arrowOk)";
 
   const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  line.setAttribute("x1", String(x1));
-  line.setAttribute("x2", String(x2));
-  line.setAttribute("y1", String(rowY));
-  line.setAttribute("y2", String(rowY));
+  line.setAttribute("x1", String(from.x + 56));
+  line.setAttribute("y1", String(from.y));
+  line.setAttribute("x2", String(to.x - 56));
+  line.setAttribute("y2", String(to.y));
   line.setAttribute("stroke", color);
-  line.setAttribute("stroke-width", "2");
-  line.setAttribute("marker-end", "url(#arrow)");
-  line.dataset.dynamic = "1";
-  line.style.strokeDasharray = "1200";
-  line.style.strokeDashoffset = "1200";
-  line.style.transition = "stroke-dashoffset 600ms ease";
-  svg.appendChild(line);
-  requestAnimationFrame(() => { line.style.strokeDashoffset = "0"; });
-
-  const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  txt.setAttribute("x", String(Math.min(x1, x2) + 10));
-  txt.setAttribute("y", String(rowY - 6));
-  txt.setAttribute("font-size", "11");
-  txt.setAttribute("fill", "#1e293b");
-  txt.dataset.dynamic = "1";
-  txt.textContent = label;
-  svg.appendChild(txt);
-
-  rowY += 26;
+  line.setAttribute("stroke-width", "3");
+  line.setAttribute("marker-end", marker);
+  line.classList.add("edge-anim");
+  flowSvg.appendChild(line);
+  setTimeout(() => line.classList.add("fade"), 1500);
 }
 
-function clearDynamicEdges() {
-  svg.querySelectorAll("[data-dynamic='1']").forEach((el) => el.remove());
+function setNodeState(stage, state) {
+  const node = document.getElementById(`node-${stage}`);
+  if (!node) return;
+  node.classList.remove("active", "done", "fail");
+  if (state) node.classList.add(state);
 }
 
-function resetDiagramRows() {
-  rowY = 110;
-  seen = new Set();
-  eventLogEl.innerHTML = "";
-  clearDynamicEdges();
+function resetFlowView() {
+  seenSteps = new Set();
+  eventQueue = [];
+  processingQueue = false;
+  paused = false;
+  timelineLog.textContent = "";
+  payeeLog.textContent = "";
+  payeeLatest.textContent = "No recipient events yet.";
+  flowSvg.querySelectorAll(".edge-anim").forEach((edge) => edge.remove());
+  nodes.forEach((n) => setNodeState(n.id, ""));
 }
 
-function appendLog(text) {
+async function saveDelayProfile() {
+  const payload = {
+    baseDelayMs: Number(document.getElementById("baseDelayMs").value),
+    jitterMs: Number(document.getElementById("jitterMs").value)
+  };
+  await fetch("/api/v1/admin/delay-profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function loadDelayProfile() {
+  const res = await fetch("/api/v1/admin/delay-profile");
+  if (!res.ok) return;
+  const profile = await res.json();
+  document.getElementById("baseDelayMs").value = profile.baseDelayMs;
+  document.getElementById("jitterMs").value = profile.jitterMs;
+}
+
+async function queryAccounts() {
+  const vpa = document.getElementById("queryUserVpa").value.trim();
+  const bankType = document.getElementById("queryBankType").value;
+  const params = new URLSearchParams();
+  if (vpa) params.set("userVpa", vpa);
+  if (bankType) params.set("bankType", bankType);
+
+  const res = await fetch(`/api/v1/admin/accounts?${params.toString()}`);
+  const data = res.ok ? await res.json() : [];
+  document.getElementById("accountDump").textContent = JSON.stringify(data, null, 2);
+}
+
+function appendTimeline(text) {
+  prepend(timelineLog, text);
+}
+
+function updateTerminalPill(state) {
+  txState.textContent = state;
+  txState.className = "pill neutral";
+  if (state === "COMPLETED") txState.className = "pill ok";
+  if (state === "FAILED" || state === "FAILED_PRE_DEBIT" || state === "REVERSED") txState.className = "pill fail";
+}
+
+function prepend(container, text) {
   const p = document.createElement("p");
   p.textContent = text;
-  eventLogEl.prepend(p);
+  container.prepend(p);
 }
 
-function updatePill(state) {
-  statusPill.textContent = state;
-  statusPill.className = "status-pill";
-  if (state === "COMPLETED") statusPill.classList.add("status-ok");
-  if (state === "FAILED_PRE_DEBIT") statusPill.classList.add("status-fail");
-  if (state === "REVERSED") statusPill.classList.add("status-rev");
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

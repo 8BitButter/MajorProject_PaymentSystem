@@ -6,6 +6,9 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+
 @Component
 public class TransactionChannelHandler extends TextWebSocketHandler {
 
@@ -42,7 +45,9 @@ public class TransactionChannelHandler extends TextWebSocketHandler {
         }
         String path = session.getUri().getPath();
         String[] parts = path.split("/");
-        return parts.length == 0 ? null : parts[parts.length - 1];
+        if (parts.length == 0) {
+            return null;
+        }
+        return URLDecoder.decode(parts[parts.length - 1], StandardCharsets.UTF_8);
     }
 }
-

@@ -1,6 +1,7 @@
 package com.dips.simulator;
 
 import com.dips.simulator.domain.AccountEntity;
+import com.dips.simulator.domain.UserEntity;
 import com.dips.simulator.domain.enums.BankType;
 import com.dips.simulator.domain.enums.FailureScenario;
 import com.dips.simulator.domain.enums.TransactionState;
@@ -8,6 +9,7 @@ import com.dips.simulator.dto.OfflineSmsDecryptedPayload;
 import com.dips.simulator.dto.OfflineSmsRequest;
 import com.dips.simulator.dto.PushPaymentRequest;
 import com.dips.simulator.repository.AccountRepository;
+import com.dips.simulator.repository.UserRepository;
 import com.dips.simulator.service.FailureInjectionService;
 import com.dips.simulator.service.OfflineSmsService;
 import com.dips.simulator.service.PaymentExecutionService;
@@ -48,6 +50,9 @@ class PaymentFlowIntegrationTest {
     private AccountRepository accountRepository;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private OfflineSmsService offlineSmsService;
 
     @Autowired
@@ -56,8 +61,11 @@ class PaymentFlowIntegrationTest {
     @BeforeEach
     void setup() {
         accountRepository.deleteAll();
+        userRepository.deleteAll();
         accountRepository.save(account("payer@issuer", BankType.ISSUER, new BigDecimal("5000.00")));
         accountRepository.save(account("payee@acquirer", BankType.ACQUIRER, new BigDecimal("1000.00")));
+        userRepository.save(user("Payer One", "payer@issuer", "1111", "ISSUER_BANK"));
+        userRepository.save(user("Payee One", "payee@acquirer", "1111", "ACQUIRER_BANK"));
         for (FailureScenario scenario : FailureScenario.values()) {
             failureInjectionService.set(scenario, false);
         }
@@ -159,6 +167,15 @@ class PaymentFlowIntegrationTest {
         return account;
     }
 
+    private UserEntity user(String name, String vpa, String mpin, String bankNodeCode) {
+        UserEntity user = new UserEntity();
+        user.setDisplayName(name);
+        user.setVpa(vpa);
+        user.setMpin(mpin);
+        user.setBankNodeCode(bankNodeCode);
+        return user;
+    }
+
     private BigDecimal balance(String vpa) {
         return accountRepository.findByVpa(vpa).orElseThrow().getBalance();
     }
@@ -173,4 +190,3 @@ class PaymentFlowIntegrationTest {
         return request;
     }
 }
-

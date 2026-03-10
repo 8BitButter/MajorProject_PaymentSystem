@@ -47,6 +47,7 @@ public class TransactionStateService {
         eventRepository.save(event);
 
         StreamEventMessage message = new StreamEventMessage();
+        message.setEventType("STATE_EVENT");
         message.setTransactionId(tx.getId());
         message.setFromState(null);
         message.setToState(tx.getState().name());
@@ -78,6 +79,7 @@ public class TransactionStateService {
         eventRepository.save(event);
 
         StreamEventMessage message = new StreamEventMessage();
+        message.setEventType("STATE_EVENT");
         message.setTransactionId(tx.getId());
         message.setFromState(from == null ? null : from.name());
         message.setToState(to.name());

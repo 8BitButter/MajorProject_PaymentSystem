@@ -4,6 +4,7 @@ import com.dips.simulator.config.SchedulerProperties;
 import com.dips.simulator.domain.enums.LoadProfile;
 import com.dips.simulator.service.LoadProfileService;
 import com.dips.simulator.service.PaymentExecutionService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -20,16 +21,19 @@ public class PrioritySchedulerService {
     private final SchedulerProperties schedulerProperties;
     private final LoadProfileService loadProfileService;
     private final PaymentExecutionService paymentExecutionService;
+    private final boolean enabled;
     private int highBurstCounter = 0;
 
     public PrioritySchedulerService(
             SchedulerProperties schedulerProperties,
             LoadProfileService loadProfileService,
-            PaymentExecutionService paymentExecutionService
+            PaymentExecutionService paymentExecutionService,
+            @Value("${dips.scheduler.enabled:true}") boolean enabled
     ) {
         this.schedulerProperties = schedulerProperties;
         this.loadProfileService = loadProfileService;
         this.paymentExecutionService = paymentExecutionService;
+        this.enabled = enabled;
     }
 
     public void enqueue(UUID transactionId, BigDecimal amount) {
@@ -42,6 +46,9 @@ public class PrioritySchedulerService {
 
     @Scheduled(fixedDelay = 120)
     public void processOne() {
+        if (!enabled) {
+            return;
+        }
         UUID next = pickNext();
         if (next == null) {
             return;
@@ -73,4 +80,3 @@ public class PrioritySchedulerService {
         return highQueue.poll();
     }
 }
-

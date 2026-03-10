@@ -3,12 +3,16 @@ package com.dips.simulator.service;
 import com.dips.simulator.domain.IdempotencyRecordEntity;
 import com.dips.simulator.domain.TransactionEntity;
 import com.dips.simulator.domain.TransactionEventEntity;
+import com.dips.simulator.domain.enums.PaymentStage;
+import com.dips.simulator.domain.enums.StageBranch;
 import com.dips.simulator.domain.enums.TransactionSource;
 import com.dips.simulator.domain.enums.TransactionState;
 import com.dips.simulator.dto.PushPaymentRequest;
 import com.dips.simulator.dto.PushPaymentResponse;
+import com.dips.simulator.dto.StageDecision;
 import com.dips.simulator.dto.TransactionEventResponse;
 import com.dips.simulator.dto.TransactionResponse;
+import com.dips.simulator.dto.TransactionStepResponse;
 import com.dips.simulator.repository.TransactionEventRepository;
 import com.dips.simulator.repository.TransactionRepository;
 import com.dips.simulator.service.scheduler.PrioritySchedulerService;
@@ -27,19 +31,28 @@ public class PaymentService {
     private final IdempotencyService idempotencyService;
     private final PrioritySchedulerService schedulerService;
     private final TransactionStateService stateService;
+    private final TransactionStepService transactionStepService;
+    private final PspStageService pspStageService;
+    private final StageDelayService stageDelayService;
 
     public PaymentService(
             TransactionRepository transactionRepository,
             TransactionEventRepository eventRepository,
             IdempotencyService idempotencyService,
             PrioritySchedulerService schedulerService,
-            TransactionStateService stateService
+            TransactionStateService stateService,
+            TransactionStepService transactionStepService,
+            PspStageService pspStageService,
+            StageDelayService stageDelayService
     ) {
         this.transactionRepository = transactionRepository;
         this.eventRepository = eventRepository;
         this.idempotencyService = idempotencyService;
         this.schedulerService = schedulerService;
         this.stateService = stateService;
+        this.transactionStepService = transactionStepService;
+        this.pspStageService = pspStageService;
+        this.stageDelayService = stageDelayService;
     }
 
     @Transactional
@@ -64,6 +77,10 @@ public class PaymentService {
                 .toList();
     }
 
+    public List<TransactionStepResponse> getTimeline(UUID transactionId) {
+        return transactionStepService.getTimeline(transactionId);
+    }
+
     private PushPaymentResponse initiate(PushPaymentRequest request, TransactionSource source, boolean offline) {
         IdempotencyRecordEntity existing = idempotencyService.find(request.getPayerVpa(), request.getClientRequestId()).orElse(null);
         if (existing != null) {
@@ -79,6 +96,7 @@ public class PaymentService {
         tx.setCorrelationId("corr-" + tx.getId());
         tx.setPayerVpa(request.getPayerVpa());
         tx.setPayeeVpa(request.getPayeeVpa());
+        tx.setPayerMpin(request.getMpin());
         tx.setAmount(request.getAmount());
         tx.setSource(source);
         tx.setState(TransactionState.CREATED);
@@ -92,6 +110,21 @@ public class PaymentService {
             stateService.transition(tx, TransactionState.OFFLINE_RECEIVED, "SMS_GATEWAY", "SMS received by PSP");
             stateService.transition(tx, TransactionState.OFFLINE_DECRYPTED, "PSP", "SMS payload decrypted");
         }
+
+        OffsetDateTime stepStart = OffsetDateTime.now();
+        long processing = stageDelayService.sleepFor(tx.getId(), PaymentStage.INITIATE);
+        OffsetDateTime stepEnd = OffsetDateTime.now();
+        StageDecision decision = pspStageService.initiateDecision(tx);
+        decision.setProcessingMs(processing);
+        decision.setBranch(StageBranch.MAIN);
+        transactionStepService.record(
+                tx,
+                decision,
+                stepStart,
+                stepEnd,
+                "source=" + tx.getSource(),
+                "accepted=true"
+        );
 
         idempotencyService.store(request, tx);
         schedulerService.enqueue(tx.getId(), tx.getAmount());
@@ -128,4 +161,3 @@ public class PaymentService {
         return response;
     }
 }
-

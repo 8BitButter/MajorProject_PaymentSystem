@@ -1,12 +1,15 @@
 package com.dips.simulator.service;
 
 import com.dips.simulator.domain.TransactionEntity;
-import com.dips.simulator.domain.enums.FailureScenario;
+import com.dips.simulator.domain.enums.PaymentStage;
+import com.dips.simulator.domain.enums.StageStatus;
 import com.dips.simulator.domain.enums.TransactionState;
+import com.dips.simulator.dto.StageDecision;
 import com.dips.simulator.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Service
@@ -14,22 +17,31 @@ public class PaymentExecutionService {
 
     private final TransactionRepository transactionRepository;
     private final TransactionStateService stateService;
-    private final FailureInjectionService failureInjectionService;
-    private final PaymentSwitchService paymentSwitchService;
-    private final VirtualBankService virtualBankService;
+    private final PspStageService pspStageService;
+    private final SwitchStageService switchStageService;
+    private final IssuerStageService issuerStageService;
+    private final AcquirerStageService acquirerStageService;
+    private final StageDelayService stageDelayService;
+    private final TransactionStepService transactionStepService;
 
     public PaymentExecutionService(
             TransactionRepository transactionRepository,
             TransactionStateService stateService,
-            FailureInjectionService failureInjectionService,
-            PaymentSwitchService paymentSwitchService,
-            VirtualBankService virtualBankService
+            PspStageService pspStageService,
+            SwitchStageService switchStageService,
+            IssuerStageService issuerStageService,
+            AcquirerStageService acquirerStageService,
+            StageDelayService stageDelayService,
+            TransactionStepService transactionStepService
     ) {
         this.transactionRepository = transactionRepository;
         this.stateService = stateService;
-        this.failureInjectionService = failureInjectionService;
-        this.paymentSwitchService = paymentSwitchService;
-        this.virtualBankService = virtualBankService;
+        this.pspStageService = pspStageService;
+        this.switchStageService = switchStageService;
+        this.issuerStageService = issuerStageService;
+        this.acquirerStageService = acquirerStageService;
+        this.stageDelayService = stageDelayService;
+        this.transactionStepService = transactionStepService;
     }
 
     @Transactional
@@ -43,48 +55,87 @@ public class PaymentExecutionService {
             return;
         }
 
-        if (failureInjectionService.isEnabled(FailureScenario.VALIDATION_FAIL)) {
-            stateService.transition(tx, TransactionState.FAILED_PRE_DEBIT, "PSP", "Validation failed by scenario");
+        StageDecision validateDecision = runStage(
+                tx,
+                PaymentStage.VALIDATE,
+                () -> pspStageService.validateDecision(tx),
+                "payer=" + tx.getPayerVpa()
+        );
+        if (validateDecision.getStatus() == StageStatus.FAIL) {
+            stateService.transition(tx, TransactionState.FAILED_PRE_DEBIT, validateDecision.getActor(), validateDecision.getReason());
             return;
         }
-        stateService.transition(tx, TransactionState.VALIDATION_PASSED, "PSP", "Validation passed");
+        stateService.transition(tx, TransactionState.VALIDATION_PASSED, validateDecision.getActor(), validateDecision.getReason());
 
-        stateService.transition(tx, TransactionState.ROUTED_TO_SWITCH, "SWITCH", "Request routed");
-        try {
-            paymentSwitchService.routeOrThrow();
-        } catch (DomainException ex) {
-            stateService.transition(tx, TransactionState.FAILED_PRE_DEBIT, "SWITCH", ex.getMessage());
+        StageDecision routeDecision = runStage(
+                tx,
+                PaymentStage.ROUTE,
+                () -> switchStageService.routeDecision(tx),
+                "txId=" + tx.getId()
+        );
+        if (routeDecision.getStatus() == StageStatus.FAIL) {
+            stateService.transition(tx, TransactionState.FAILED_PRE_DEBIT, routeDecision.getActor(), routeDecision.getReason());
             return;
         }
+        stateService.transition(tx, TransactionState.ROUTED_TO_SWITCH, routeDecision.getActor(), routeDecision.getReason());
 
         stateService.transition(tx, TransactionState.DEBIT_REQUESTED, "ISSUER_BANK", "Debit requested");
-        boolean debitSucceeded = !failureInjectionService.isEnabled(FailureScenario.DEBIT_FAIL)
-                && virtualBankService.debit(tx, tx.getPayerVpa(), tx.getAmount());
-        if (!debitSucceeded) {
-            stateService.transition(tx, TransactionState.DEBIT_FAILED, "ISSUER_BANK", "Debit failed");
+        StageDecision debitDecision = runStage(
+                tx,
+                PaymentStage.DEBIT,
+                () -> issuerStageService.debitDecision(tx, true),
+                "amount=" + tx.getAmount()
+        );
+        if (debitDecision.getStatus() == StageStatus.FAIL) {
+            stateService.transition(tx, TransactionState.DEBIT_FAILED, debitDecision.getActor(), debitDecision.getReason());
             stateService.transition(tx, TransactionState.FAILED_PRE_DEBIT, "PSP", "Terminal failure before debit completion");
             return;
         }
 
-        stateService.transition(tx, TransactionState.DEBIT_SUCCESS, "ISSUER_BANK", "Debit succeeded");
+        stateService.transition(tx, TransactionState.DEBIT_SUCCESS, debitDecision.getActor(), debitDecision.getReason());
         stateService.transition(tx, TransactionState.CREDIT_REQUESTED, "ACQUIRER_BANK", "Credit requested");
 
-        if (failureInjectionService.isEnabled(FailureScenario.CREDIT_FAIL)) {
-            stateService.transition(tx, TransactionState.CREDIT_FAILED, "ACQUIRER_BANK", "Credit failed by scenario");
+        StageDecision creditDecision = runStage(
+                tx,
+                PaymentStage.CREDIT,
+                () -> acquirerStageService.creditDecision(tx, true),
+                "amount=" + tx.getAmount()
+        );
+        if (creditDecision.getStatus() == StageStatus.FAIL) {
+            stateService.transition(tx, TransactionState.CREDIT_FAILED, creditDecision.getActor(), creditDecision.getReason());
             stateService.transition(tx, TransactionState.REVERSAL_REQUESTED, "PSP", "Initiating reversal");
-            if (failureInjectionService.isEnabled(FailureScenario.REVERSAL_FAIL)) {
-                // Keep eventual consistency deterministic even when reversal failure is injected.
-                virtualBankService.reversalCreditToPayer(tx, tx.getPayerVpa(), tx.getAmount());
-                stateService.transition(tx, TransactionState.REVERSED, "ISSUER_BANK", "Reversal succeeded after fallback");
-                return;
-            }
-            virtualBankService.reversalCreditToPayer(tx, tx.getPayerVpa(), tx.getAmount());
-            stateService.transition(tx, TransactionState.REVERSED, "ISSUER_BANK", "Reversal succeeded");
+            StageDecision reversalDecision = runStage(
+                    tx,
+                    PaymentStage.REVERSAL,
+                    () -> issuerStageService.reversalDecision(tx, true),
+                    "amount=" + tx.getAmount()
+            );
+            stateService.transition(tx, TransactionState.REVERSED, reversalDecision.getActor(), reversalDecision.getReason());
             return;
         }
 
-        virtualBankService.credit(tx, tx.getPayeeVpa(), tx.getAmount());
         stateService.transition(tx, TransactionState.COMPLETED, "PSP", "Payment completed");
     }
-}
 
+    private StageDecision runStage(
+            TransactionEntity tx,
+            PaymentStage stage,
+            java.util.function.Supplier<StageDecision> supplier,
+            String inputSummary
+    ) {
+        OffsetDateTime startedAt = OffsetDateTime.now();
+        long delayMs = stageDelayService.sleepFor(tx.getId(), stage);
+        StageDecision decision = supplier.get();
+        decision.setProcessingMs(delayMs);
+        OffsetDateTime endedAt = OffsetDateTime.now();
+        transactionStepService.record(
+                tx,
+                decision,
+                startedAt,
+                endedAt,
+                inputSummary,
+                "status=" + decision.getStatus() + ",next=" + decision.getNextStage()
+        );
+        return decision;
+    }
+}

@@ -5,72 +5,28 @@ import com.dips.simulator.domain.enums.StageBranch;
 import com.dips.simulator.domain.enums.StageStatus;
 
 import java.time.OffsetDateTime;
-import java.util.UUID;
 
-public class StreamEventMessage {
+public class TransactionStepResponse {
 
-    private String eventType;
-    private UUID transactionId;
-    private String fromState;
-    private String toState;
-    private String actor;
-    private String reason;
+    private Long id;
     private PaymentStage stage;
     private StageStatus status;
+    private String actor;
+    private String reason;
     private PaymentStage nextStage;
     private long processingMs;
     private StageBranch branch;
     private OffsetDateTime startedAt;
     private OffsetDateTime endedAt;
-    private Long stepId;
-    private OffsetDateTime createdAt;
+    private String inputSummary;
+    private String outputSummary;
 
-    public String getEventType() {
-        return eventType;
+    public Long getId() {
+        return id;
     }
 
-    public void setEventType(String eventType) {
-        this.eventType = eventType;
-    }
-
-    public UUID getTransactionId() {
-        return transactionId;
-    }
-
-    public void setTransactionId(UUID transactionId) {
-        this.transactionId = transactionId;
-    }
-
-    public String getFromState() {
-        return fromState;
-    }
-
-    public void setFromState(String fromState) {
-        this.fromState = fromState;
-    }
-
-    public String getToState() {
-        return toState;
-    }
-
-    public void setToState(String toState) {
-        this.toState = toState;
-    }
-
-    public String getActor() {
-        return actor;
-    }
-
-    public void setActor(String actor) {
-        this.actor = actor;
-    }
-
-    public String getReason() {
-        return reason;
-    }
-
-    public void setReason(String reason) {
-        this.reason = reason;
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public PaymentStage getStage() {
@@ -87,6 +43,22 @@ public class StreamEventMessage {
 
     public void setStatus(StageStatus status) {
         this.status = status;
+    }
+
+    public String getActor() {
+        return actor;
+    }
+
+    public void setActor(String actor) {
+        this.actor = actor;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
     }
 
     public PaymentStage getNextStage() {
@@ -129,19 +101,20 @@ public class StreamEventMessage {
         this.endedAt = endedAt;
     }
 
-    public Long getStepId() {
-        return stepId;
+    public String getInputSummary() {
+        return inputSummary;
     }
 
-    public void setStepId(Long stepId) {
-        this.stepId = stepId;
+    public void setInputSummary(String inputSummary) {
+        this.inputSummary = inputSummary;
     }
 
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
+    public String getOutputSummary() {
+        return outputSummary;
     }
 
-    public void setCreatedAt(OffsetDateTime createdAt) {
-        this.createdAt = createdAt;
+    public void setOutputSummary(String outputSummary) {
+        this.outputSummary = outputSummary;
     }
 }
+

@@ -14,5 +14,10 @@ spring:
       enabled: false
 
 dips:
+  delay:
+    base-ms: 0
+    jitter-ms: 0
+  scheduler:
+    enabled: false
   sms:
     aes-key-base64: MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=

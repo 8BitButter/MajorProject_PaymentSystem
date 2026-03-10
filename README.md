@@ -23,13 +23,11 @@ docker compose up --build
 ```
 
 Open:
-- `http://localhost:8080/` payer console
-- `http://localhost:8080/payee.html` payee console
-- `http://localhost:8080/admin.html` admin console
+- `http://localhost:8080/` unified 3-panel simulator (payer + admin + payee)
 
 ## Run Locally (Maven)
 
-Prereqs: Java 21, Maven.
+Prereqs: Java 17, Maven.
 
 ```bash
 cd backend
@@ -59,13 +57,22 @@ docker compose up postgres
 
 ## APIs
 
+- `POST /api/v1/payer/push`
+- `GET /api/v1/transactions/{txId}`
+- `GET /api/v1/transactions/{txId}/timeline`
+- `GET /api/v1/admin/transactions/{txId}/steps`
+- `GET /api/v1/admin/accounts`
+- `POST /api/v1/admin/failures/{scenario}/enable|disable`
+- `POST /api/v1/admin/delay-profile`
 - `POST /api/payments/push`
 - `GET /api/payments/{txId}`
 - `GET /api/payments/{txId}/events`
 - `POST /api/offline/sms/submit`
-- `POST /api/admin/failure-scenarios/{scenario}/enable|disable`
-- `POST /api/admin/load-profile`
-- `GET /api/admin/status`
+- `POST /api/v1/sim/psp/validate/{txId}`
+- `POST /api/v1/sim/switch/route/{txId}`
+- `POST /api/v1/sim/issuer/debit/{txId}`
+- `POST /api/v1/sim/acquirer/credit/{txId}`
+- `POST /api/v1/sim/issuer/reversal/{txId}`
 - `WS /ws/transactions/{txId}`
 - `WS /ws/users/{userId}`
 
