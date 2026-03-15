@@ -2,6 +2,7 @@
 
 Web-first, simulation-only UPI-inspired push payment platform with:
 - deterministic transaction FSM and append-only event timeline
+- durable DB-backed execution queue with retry/backoff and dead-letter state
 - issuer/acquirer virtual ledgers with debit/credit/reversal handling
 - offline encrypted SMS ingestion (AES-GCM)
 - amount-based priority scheduler
@@ -66,6 +67,7 @@ docker compose up postgres
 - `POST /api/admin/failure-scenarios/{scenario}/enable|disable`
 - `POST /api/admin/load-profile`
 - `GET /api/admin/status`
+- `GET /api/admin/dashboard?limit=20&userId=payer@issuer`
 - `WS /ws/transactions/{txId}`
 - `WS /ws/users/{userId}`
 
@@ -93,3 +95,5 @@ docker compose up postgres
 - This implementation is simulation-only and does not integrate real UPI rails or real money.
 - V1 scope is push flow; collect/QR are deferred.
 - Module-to-code traceability is in `MODULES.md`.
+- Queue execution telemetry is exposed in `GET /api/admin/status` under `executionQueue`.
+- Admin product KPI and recent transaction feed is available via `GET /api/admin/dashboard` and rendered in `admin.html`.

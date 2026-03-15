@@ -9,9 +9,12 @@ import com.dips.simulator.dto.PushPaymentRequest;
 import com.dips.simulator.dto.PushPaymentResponse;
 import com.dips.simulator.dto.TransactionEventResponse;
 import com.dips.simulator.dto.TransactionResponse;
+import com.dips.simulator.logging.LogContext;
 import com.dips.simulator.repository.TransactionEventRepository;
 import com.dips.simulator.repository.TransactionRepository;
-import com.dips.simulator.service.scheduler.PrioritySchedulerService;
+import com.dips.simulator.service.scheduler.TransactionDispatchService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,17 +25,19 @@ import java.util.UUID;
 @Service
 public class PaymentService {
 
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+
     private final TransactionRepository transactionRepository;
     private final TransactionEventRepository eventRepository;
     private final IdempotencyService idempotencyService;
-    private final PrioritySchedulerService schedulerService;
+    private final TransactionDispatchService schedulerService;
     private final TransactionStateService stateService;
 
     public PaymentService(
             TransactionRepository transactionRepository,
             TransactionEventRepository eventRepository,
             IdempotencyService idempotencyService,
-            PrioritySchedulerService schedulerService,
+            TransactionDispatchService schedulerService,
             TransactionStateService stateService
     ) {
         this.transactionRepository = transactionRepository;
@@ -70,13 +75,18 @@ public class PaymentService {
             idempotencyService.ensureSameRequest(existing, request);
             TransactionEntity existingTx = transactionRepository.findById(existing.getTransactionId())
                     .orElseThrow(() -> new DomainException("Idempotency record references missing transaction"));
+            LogContext.setTransactionId(existingTx.getId());
+            LogContext.setCorrelationId(existingTx.getCorrelationId());
+            log.info("event=idempotent_replay state={} source={} offline={}",
+                    existingTx.getState(), existingTx.getSource(), offline);
             return new PushPaymentResponse(existingTx.getId(), true, existingTx.getState(), OffsetDateTime.now());
         }
 
         TransactionEntity tx = new TransactionEntity();
         tx.setId(UUID.randomUUID());
         tx.setClientRequestId(request.getClientRequestId());
-        tx.setCorrelationId("corr-" + tx.getId());
+        tx.setCorrelationId(LogContext.ensureCorrelationId("corr"));
+        LogContext.setTransactionId(tx.getId());
         tx.setPayerVpa(request.getPayerVpa());
         tx.setPayeeVpa(request.getPayeeVpa());
         tx.setAmount(request.getAmount());
@@ -85,6 +95,8 @@ public class PaymentService {
         tx.setTerminal(false);
         tx.setCreatedAt(OffsetDateTime.now());
         tx.setUpdatedAt(OffsetDateTime.now());
+        log.info("event=transaction_created source={} offline={} amount={} payerVpa={} payeeVpa={}",
+                source, offline, tx.getAmount(), tx.getPayerVpa(), tx.getPayeeVpa());
         stateService.recordInitial(tx, "PSP", "Transaction created");
 
         if (offline) {
@@ -95,6 +107,7 @@ public class PaymentService {
 
         idempotencyService.store(request, tx);
         schedulerService.enqueue(tx.getId(), tx.getAmount());
+        log.info("event=transaction_enqueued state={}", tx.getState());
         return new PushPaymentResponse(tx.getId(), false, tx.getState(), OffsetDateTime.now());
     }
 

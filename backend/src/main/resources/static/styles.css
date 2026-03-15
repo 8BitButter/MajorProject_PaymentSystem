@@ -31,6 +31,11 @@ h1, h2 {
   margin: 0 0 12px;
 }
 
+h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
 .subtitle {
   margin: 0 0 20px;
   color: var(--muted);
@@ -156,9 +161,95 @@ button.secondary {
 .dot.fail { background: var(--fail); }
 .dot.rev { background: var(--warn); }
 
+.dashboard-head {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+.dashboard-filter label {
+  margin-bottom: 6px;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.kpi-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: linear-gradient(180deg, #f8fffd, #f2faf9);
+}
+
+.kpi-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.kpi-card strong {
+  font-size: 20px;
+  color: #0f5132;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid #bde5df;
+  background: #ecfdf5;
+  color: #065f46;
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 5px 9px;
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.tx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 760px;
+}
+
+.tx-table th,
+.tx-table td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid #ecf0f6;
+}
+
+.tx-table th {
+  background: #f8fafc;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 @media (max-width: 920px) {
   .row {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-head {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

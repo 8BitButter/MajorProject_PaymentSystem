@@ -6,6 +6,8 @@ import com.dips.simulator.domain.enums.TransactionState;
 import com.dips.simulator.dto.StreamEventMessage;
 import com.dips.simulator.repository.TransactionEventRepository;
 import com.dips.simulator.repository.TransactionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +15,8 @@ import java.time.OffsetDateTime;
 
 @Service
 public class TransactionStateService {
+
+    private static final Logger log = LoggerFactory.getLogger(TransactionStateService.class);
 
     private final TransactionFsmService fsmService;
     private final TransactionRepository transactionRepository;
@@ -33,6 +37,7 @@ public class TransactionStateService {
 
     @Transactional
     public void recordInitial(TransactionEntity tx, String actor, String reason) {
+        log.info("event=state_transition from=NULL to={} actor={} reason={}", tx.getState(), actor, reason);
         tx.setTerminal(tx.getState().isTerminal());
         tx.setUpdatedAt(OffsetDateTime.now());
         transactionRepository.save(tx);
@@ -62,6 +67,7 @@ public class TransactionStateService {
     @Transactional
     public void transition(TransactionEntity tx, TransactionState to, String actor, String reason) {
         TransactionState from = tx.getState();
+        log.info("event=state_transition from={} to={} actor={} reason={}", from, to, actor, reason);
         fsmService.validateTransition(from, to);
         tx.setState(to);
         tx.setTerminal(to.isTerminal());

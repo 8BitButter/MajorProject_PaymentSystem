@@ -1,0 +1,23 @@
+@startuml
+title Concurrent Worker Locking with SKIP LOCKED
+
+participant "Worker A" as WA
+participant "Worker B" as WB
+participant "execution_queue" as Q
+participant "transactions" as T
+
+WA -> Q : SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1
+Q --> WA : row X locked
+
+WB -> Q : SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1
+Q --> WB : row Y or none
+
+WA -> T : load transaction X
+WA -> T : update state with optimistic version
+WA -> Q : delete/requeue row X
+
+WB -> T : load transaction Y (if any)
+WB -> T : update state with optimistic version
+WB -> Q : delete/requeue row Y
+
+@enduml

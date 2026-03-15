@@ -1,0 +1,37 @@
+@startuml
+title PSP Internal Deterministic Execution Engine (Persistent Queue)
+
+package "PSP Service" {
+  [REST API]
+  [Transaction Manager]
+  [Persistent Queue Manager]
+  [Worker Pool]
+  [State Transition Engine]
+  [Switch Client Adapter]
+  [Transaction Repository]
+  [Queue Repository]
+  [Event Logger]
+
+  [REST API] --> [Transaction Manager]
+  [Transaction Manager] --> [Transaction Repository]
+  [Transaction Manager] --> [Queue Repository]
+  [Worker Pool] --> [Queue Repository]
+  [Worker Pool] --> [Transaction Repository]
+  [Worker Pool] --> [State Transition Engine]
+  [State Transition Engine] --> [Switch Client Adapter]
+  [State Transition Engine] --> [Event Logger]
+}
+
+database "PSP DB" {
+  [transactions]
+  [transaction_state_events]
+  [execution_queue]
+  [idempotency_records]
+}
+
+[Transaction Repository] --> [transactions]
+[Transaction Repository] --> [idempotency_records]
+[Queue Repository] --> [execution_queue]
+[Event Logger] --> [transaction_state_events]
+
+@enduml

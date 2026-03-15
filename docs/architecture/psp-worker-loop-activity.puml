@@ -1,0 +1,33 @@
+@startuml
+title PSP Worker Loop (Persistent Queue)
+
+start
+
+:Poll execution_queue where status=PENDING\nand next_execution_at<=now\norder by priority_score, created_at;
+
+if (Row available?) then (yes)
+  :Lock row (PROCESSING);
+  :Load transaction by transaction_id;
+
+  if (Transaction terminal?) then (yes)
+    :Delete queue row;
+    stop
+  endif
+
+  :Determine next legal action from current state;
+  :Execute external action (debit/credit/reverse);
+  :Persist new state + append event log;
+
+  if (New state terminal?) then (yes)
+    :Delete queue row;
+  else (no)
+    :Update queue row to PENDING;
+    :Increment attempt counter;\nset next_execution_at by backoff policy;
+  endif
+else (no)
+  :Sleep poll interval;
+endif
+
+stop
+
+@enduml

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DIPS Simulator - Login</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .login-container {
+      max-width: 400px;
+      margin: 80px auto;
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(15,23,42,0.10);
+      padding: 32px 28px 24px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .login-logo {
+      font-size: 2rem;
+      font-weight: bold;
+      color: var(--brand);
+      margin-bottom: 18px;
+    }
+    .login-title {
+      font-size: 1.2rem;
+      margin-bottom: 18px;
+      color: var(--ink);
+    }
+    .login-form label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: block;
+    }
+    .login-form input {
+      width: 100%;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      font-size: 1rem;
+    }
+    .login-form button {
+      width: 100%;
+      padding: 10px;
+      background: var(--brand);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .login-error {
+      color: var(--fail);
+      margin-bottom: 10px;
+      font-size: 0.98rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-logo">DIPS</div>
+    <div class="login-title">Admin Login</div>
+    <form class="login-form" id="loginForm">
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="username" required />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <div class="login-error" id="loginError" style="display:none"></div>
+      <button type="submit">Login</button>
+    </form>
+  </div>
+  <script src="/login.js"></script>
+</body>
+</html>

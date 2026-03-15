@@ -1,0 +1,45 @@
+@startuml
+title Observability and Determinism Verification Architecture
+
+package "Runtime Producers" {
+  [PSP State Engine]
+  [Queue Workers]
+  [Switch Router]
+  [Bank Services]
+}
+
+package "Audit and Metrics" {
+  [Transaction Event Logger]
+  [Failure Event Logger]
+  [Metrics Collector]
+  [Determinism Analyzer]
+}
+
+database "Observability Store" {
+  [transaction_state_events]
+  [failure_events]
+  [experiment_metadata]
+  [metrics_snapshots]
+}
+
+[PSP State Engine] --> [Transaction Event Logger]
+[Queue Workers] --> [Transaction Event Logger]
+[Switch Router] --> [Failure Event Logger]
+[Bank Services] --> [Failure Event Logger]
+[PSP State Engine] --> [Metrics Collector]
+[Queue Workers] --> [Metrics Collector]
+[Bank Services] --> [Metrics Collector]
+
+[Transaction Event Logger] --> [transaction_state_events]
+[Failure Event Logger] --> [failure_events]
+[Metrics Collector] --> [metrics_snapshots]
+[Determinism Analyzer] --> [transaction_state_events]
+[Determinism Analyzer] --> [failure_events]
+[Determinism Analyzer] --> [experiment_metadata]
+
+note right of [Determinism Analyzer]
+Compare two runs with same inputs + same failure policy:
+state trace equality and terminal outcome equality.
+end note
+
+@enduml

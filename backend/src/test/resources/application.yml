@@ -13,6 +13,15 @@ spring:
     scheduling:
       enabled: false
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} correlationId=%X{correlationId:-na} transactionId=%X{transactionId:-na} - %msg%n"
+
 dips:
+  scheduler:
+    enabled: false
+    operation-timeout-ms: 3000
+    operation-max-retries: 2
+    operation-retry-backoff-ms: 1000
   sms:
     aes-key-base64: MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=

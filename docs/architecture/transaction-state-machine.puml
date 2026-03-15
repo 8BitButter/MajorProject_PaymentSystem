@@ -1,0 +1,34 @@
+@startuml
+title Deterministic Distributed Transaction State Machine
+
+[*] --> CREATED
+
+CREATED --> VALIDATED : validation_success
+CREATED --> FAILED : validation_failed
+
+VALIDATED --> DEBIT_IN_PROGRESS : initiate_debit
+
+DEBIT_IN_PROGRESS --> DEBIT_SUCCESS : debit_confirmed
+DEBIT_IN_PROGRESS --> FAILED : debit_failed_or_unresolved_timeout
+
+DEBIT_SUCCESS --> CREDIT_IN_PROGRESS : initiate_credit
+
+CREDIT_IN_PROGRESS --> SUCCESS : credit_confirmed
+CREDIT_IN_PROGRESS --> COMPENSATION_IN_PROGRESS : credit_failed_or_unresolved_timeout
+
+COMPENSATION_IN_PROGRESS --> COMPENSATED : reverse_debit_confirmed
+
+SUCCESS --> [*]
+FAILED --> [*]
+COMPENSATED --> [*]
+
+note right of FAILED
+Terminal when debit has not completed successfully.
+end note
+
+note right of COMPENSATED
+Terminal when debit succeeded but credit failed,
+and reverse debit succeeded.
+end note
+
+@enduml

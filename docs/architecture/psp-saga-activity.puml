@@ -1,0 +1,60 @@
+@startuml
+title PSP Deterministic Saga Activity (with Timeout Resolution)
+
+start
+
+:Receive transaction request;
+:Persist transaction (state=CREATED);
+
+if (Validation passed?) then (yes)
+  :Move state to VALIDATED;
+else (no)
+  :Move state to FAILED;
+  stop
+endif
+
+:Move state to DEBIT_IN_PROGRESS;
+:Call debit via Switch;
+
+if (Debit response received?) then (yes)
+  if (Debit SUCCESS?) then (yes)
+    :Move state to DEBIT_SUCCESS;
+  else (no)
+    :Move state to FAILED;
+    stop
+  endif
+else (timeout)
+  :Query bank status (DEBIT);
+  if (Debit SUCCESS?) then (yes)
+    :Move state to DEBIT_SUCCESS;
+  else (no)
+    :Move state to FAILED;
+    stop
+  endif
+endif
+
+:Move state to CREDIT_IN_PROGRESS;
+:Call credit via Switch;
+
+if (Credit response received?) then (yes)
+  if (Credit SUCCESS?) then (yes)
+    :Move state to SUCCESS;
+    stop
+  else (no)
+    :Move state to COMPENSATION_IN_PROGRESS;
+  endif
+else (timeout)
+  :Query bank status (CREDIT);
+  if (Credit SUCCESS?) then (yes)
+    :Move state to SUCCESS;
+    stop
+  else (no)
+    :Move state to COMPENSATION_IN_PROGRESS;
+  endif
+endif
+
+:Call reverse debit via Switch;
+:Move state to COMPENSATED;
+stop
+
+@enduml

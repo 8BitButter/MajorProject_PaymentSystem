@@ -1,0 +1,89 @@
+flowchart TB
+  %% Layer 1: Clients
+  subgraph L1[Client Layer]
+    U1[Payer App]
+    U2[Payee App]
+    A1[Admin Console]
+    G1[Load Generator]
+  end
+
+  %% Layer 2: Control + Experiment
+  subgraph L2[Control and Experiment Layer]
+    EX[Experiment Controller]
+    FP[Failure Policy Manager]
+  end
+
+  %% Layer 3: PSP Orchestration
+  subgraph L3[PSP Orchestration Layer]
+    API[PSP API]
+    ORCH[Saga Orchestrator]
+    FSM[State Transition Engine]
+    QM[Persistent Queue Manager]
+    WK[Worker Pool]
+  end
+
+  %% Layer 4: Routing
+  subgraph L4[Switch Layer]
+    SW[Switch Router]
+    SFI[Switch Failure Injector]
+  end
+
+  %% Layer 5: Bank Services
+  subgraph L5[Bank Services Layer]
+    B1[Issuer Bank Service]
+    B2[Acquirer Bank Service]
+    BFI[Bank Failure Injector]
+  end
+
+  %% Layer 6: Data + Observability
+  subgraph L6[Data and Observability Layer]
+    PSPDB[(PSP DB\ntransactions\nstate_events\nexecution_queue\nfailure_policies)]
+    B1DB[(Issuer DB\naccounts\nledger_entries\nprocessed_operations)]
+    B2DB[(Acquirer DB\naccounts\nledger_entries\nprocessed_operations)]
+    OBS[Observability Pipeline\nmetrics + audit + traces]
+    DASH[Metrics Dashboard]
+  end
+
+  %% Client and control ingress
+  U1 --> API
+  U2 --> API
+  A1 --> EX
+  G1 --> API
+  EX --> FP
+  FP --> ORCH
+  FP --> SFI
+  FP --> BFI
+
+  %% PSP execution loop
+  API --> ORCH
+  ORCH --> FSM
+  FSM --> QM
+  QM --> WK
+  WK --> FSM
+
+  %% PSP to switch and banks
+  FSM --> SW
+  SW --> SFI
+  SFI --> B1
+  SFI --> B2
+  BFI --> B1
+  BFI --> B2
+  B1 --> SW
+  B2 --> SW
+  SW --> FSM
+
+  %% Persistence
+  ORCH --> PSPDB
+  FSM --> PSPDB
+  QM --> PSPDB
+  WK --> PSPDB
+  B1 --> B1DB
+  B2 --> B2DB
+
+  %% Observability
+  ORCH --> OBS
+  FSM --> OBS
+  SW --> OBS
+  B1 --> OBS
+  B2 --> OBS
+  OBS --> DASH

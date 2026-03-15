@@ -1,0 +1,48 @@
+@startuml
+title Deterministic Failure Injection Architecture
+
+package "PSP" {
+  [PSP API]
+  [PSP Failure Injector]
+  [Saga Engine]
+}
+
+package "Switch" {
+  [Switch Router]
+  [Switch Failure Injector]
+}
+
+package "Bank" {
+  [Bank API]
+  [Bank Failure Injector]
+  [Ledger Engine]
+}
+
+database "Failure Config Store" {
+  [failure_policies]
+  [failure_events]
+}
+
+[PSP API] --> [PSP Failure Injector]
+[PSP Failure Injector] --> [Saga Engine]
+
+[Switch Router] --> [Switch Failure Injector]
+[Switch Failure Injector] --> [Bank API]
+
+[Bank API] --> [Bank Failure Injector]
+[Bank Failure Injector] --> [Ledger Engine]
+
+[PSP Failure Injector] --> [failure_policies]
+[Switch Failure Injector] --> [failure_policies]
+[Bank Failure Injector] --> [failure_policies]
+
+[PSP Failure Injector] --> [failure_events]
+[Switch Failure Injector] --> [failure_events]
+[Bank Failure Injector] --> [failure_events]
+
+note bottom
+Injection is rule-based and deterministic:
+match(service, operation, trigger_attempt) -> inject(ERROR|TIMEOUT|DELAY).
+end note
+
+@enduml

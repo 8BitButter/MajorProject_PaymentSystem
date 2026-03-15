@@ -1,0 +1,91 @@
+@startuml
+title PSP Service ERD (Deterministic Orchestrator)
+
+entity transactions {
+  +transaction_id : UUID <<PK>>
+  payer_bank_id : varchar(64)
+  payer_account_id : varchar(128)
+  payee_bank_id : varchar(64)
+  payee_account_id : varchar(128)
+  amount : decimal(18,2)
+  currency : varchar(8)
+  current_state : varchar(64)
+  terminal_at : timestamptz
+  priority_score : int
+  experiment_id : UUID <<FK nullable>>
+  idempotency_key : varchar(128) <<UNIQUE>>
+  version : int
+  created_at : timestamptz
+  updated_at : timestamptz
+}
+
+entity transaction_state_events {
+  +event_id : bigint <<PK>>
+  transaction_id : UUID <<FK>>
+  from_state : varchar(64)
+  to_state : varchar(64)
+  transition_reason : varchar(255)
+  attempt_number : int
+  worker_id : varchar(64)
+  occurred_at : timestamptz
+}
+
+entity execution_queue {
+  +transaction_id : UUID <<PK, FK>>
+  queue_status : varchar(32)
+  priority_score : int
+  attempt_number : int
+  next_execution_at : timestamptz
+  locked_by : varchar(64)
+  locked_at : timestamptz
+  last_error_code : varchar(128)
+  created_at : timestamptz
+}
+
+entity failure_policies {
+  +policy_id : UUID <<PK>>
+  experiment_id : UUID <<FK nullable>>
+  target_service : varchar(32)
+  operation_type : varchar(32)
+  failure_mode : varchar(32)
+  trigger_attempt : int
+  delay_ms : int
+  active : boolean
+  created_at : timestamptz
+}
+
+entity failure_injections {
+  +injection_id : bigint <<PK>>
+  transaction_id : UUID <<FK>>
+  policy_id : UUID <<FK>>
+  attempt_number : int
+  injected_at : timestamptz
+}
+
+entity experiments {
+  +experiment_id : UUID <<PK>>
+  name : varchar(128)
+  description : text
+  config_hash : varchar(128)
+  started_at : timestamptz
+  ended_at : timestamptz
+}
+
+transactions ||--o{ transaction_state_events : has
+transactions ||--|| execution_queue : scheduled_as
+transactions ||--o{ failure_injections : observes
+experiments ||--o{ transactions : scopes
+experiments ||--o{ failure_policies : defines
+failure_policies ||--o{ failure_injections : triggers
+
+note bottom of transactions
+CHECK(amount > 0)
+CHECK(terminal_at IS NULL OR current_state IN ('SUCCESS','FAILED','COMPENSATED'))
+end note
+
+note bottom of execution_queue
+One active queue row per transaction.
+Use SELECT ... FOR UPDATE SKIP LOCKED for worker locking.
+end note
+
+@enduml

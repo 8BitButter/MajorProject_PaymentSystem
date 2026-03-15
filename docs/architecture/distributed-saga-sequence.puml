@@ -1,0 +1,63 @@
+@startuml
+title PSP-Centric Distributed Saga Sequence (Push + Collect)
+
+actor Payer
+actor Payee
+participant "Payer App" as PayerApp
+participant "Payee App" as PayeeApp
+participant "PSP (Orchestrator)" as PSP
+participant "Switch" as Switch
+participant "Payer Bank" as PayerBank
+participant "Payee Bank" as PayeeBank
+
+== Push Payment ==
+Payer -> PayerApp : submit payment intent
+PayerApp -> PSP : create transaction
+PSP -> PSP : CREATED -> VALIDATED
+PSP -> PSP : state = DEBIT_IN_PROGRESS
+PSP -> Switch : debit(transactionId, correlationId)
+Switch -> PayerBank : /bank/debit
+PayerBank --> Switch : debit response
+Switch --> PSP : debit response
+
+alt Debit failed
+  PSP -> PSP : state = FAILED
+  PSP -> PayerApp : failure
+else Debit success
+  PSP -> PSP : state = DEBIT_SUCCESS
+  PSP -> PSP : state = CREDIT_IN_PROGRESS
+  PSP -> Switch : credit(transactionId, correlationId)
+  Switch -> PayeeBank : /bank/credit
+  PayeeBank --> Switch : credit response
+  Switch --> PSP : credit response
+
+  alt Credit success
+    PSP -> PSP : state = SUCCESS
+    PSP -> PayerApp : success
+    PSP -> PayeeApp : received
+  else Credit failed
+    PSP -> PSP : state = COMPENSATION_IN_PROGRESS
+    PSP -> Switch : reverse(transactionId, correlationId)
+    Switch -> PayerBank : /bank/reverse
+    PayerBank --> Switch : reverse response
+    Switch --> PSP : reverse response
+    PSP -> PSP : state = COMPENSATED
+    PSP -> PayerApp : reversed
+  end
+end
+
+== Collect Request ==
+Payee -> PayeeApp : create collect request
+PayeeApp -> PSP : create pending collect transaction
+PSP -> PayerApp : collect request notification
+
+alt Declined or expired
+  PSP -> PSP : state = FAILED
+  PSP -> PayeeApp : collect failed
+else Approved
+  Payer -> PayerApp : approve collect
+  PayerApp -> PSP : approve
+  PSP -> PSP : continue same debit->credit saga
+end
+
+@enduml

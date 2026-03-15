@@ -1,0 +1,42 @@
+@startuml
+title Bank Service ERD (Immutable Ledger + Idempotency)
+
+entity accounts {
+  +account_id : varchar(128) <<PK>>
+  bank_id : varchar(64)
+  status : varchar(32)
+  created_at : timestamptz
+}
+
+entity ledger_entries {
+  +entry_id : bigint <<PK>>
+  transaction_id : UUID
+  account_id : varchar(128) <<FK>>
+  operation_type : varchar(32)
+  amount : decimal(18,2)
+  direction : varchar(16)
+  created_at : timestamptz
+}
+
+entity processed_operations {
+  +transaction_id : UUID <<PK>>
+  +operation_type : varchar(32) <<PK>>
+  request_hash : varchar(256)
+  result : varchar(32)
+  processed_at : timestamptz
+}
+
+accounts ||--o{ ledger_entries : owns
+
+note bottom of ledger_entries
+Append-only records.
+No update/delete in normal operation.
+Balance is derived from entries.
+end note
+
+note bottom of processed_operations
+PK(transaction_id, operation_type) enforces idempotency
+for debit/credit/reverse operations.
+end note
+
+@enduml

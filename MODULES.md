@@ -54,6 +54,10 @@ This file maps the approved module plan (M0-M14) to current implementation artif
 
 ## M11 Priority Scheduler
 - `backend/src/main/java/com/dips/simulator/service/scheduler/PrioritySchedulerService.java`
+- `backend/src/main/java/com/dips/simulator/service/scheduler/ExecutionQueueService.java`
+- `backend/src/main/java/com/dips/simulator/domain/ExecutionQueueEntity.java`
+- `backend/src/main/java/com/dips/simulator/repository/ExecutionQueueRepository.java`
+- `backend/src/main/resources/db/migration/V2__execution_queue.sql`
 - `backend/src/main/java/com/dips/simulator/config/SchedulerProperties.java`
 - `backend/src/main/java/com/dips/simulator/service/LoadProfileService.java`
 
@@ -71,4 +75,12 @@ This file maps the approved module plan (M0-M14) to current implementation artif
 ## M14 QA, Performance, Final Demo
 - `backend/src/test/java/com/dips/simulator/PaymentFlowIntegrationTest.java`
 - `README.md` runbook and demo URLs
+
+## M15 Ops Growth Dashboard
+- `backend/src/main/java/com/dips/simulator/service/AdminDashboardService.java`
+- `backend/src/main/java/com/dips/simulator/dto/AdminDashboardResponse.java`
+- `backend/src/main/java/com/dips/simulator/dto/AdminDashboardTransactionResponse.java`
+- `GET /api/admin/dashboard`
+- `backend/src/main/resources/static/admin.html`
+- `backend/src/main/resources/static/admin.js`
 

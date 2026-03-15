@@ -14,7 +14,81 @@
     <a href="/admin.html">Admin Console</a>
   </div>
   <h1>Admin Console</h1>
-  <p class="subtitle">Control failure scenarios and load profile for reproducible testing.</p>
+  <p class="subtitle">Control failure scenarios, monitor live KPIs, and inspect recent payment execution behavior.</p>
+
+  <div class="card">
+    <div class="dashboard-head">
+      <h2>Growth Dashboard</h2>
+      <div class="dashboard-filter">
+        <label for="dashboardUserId">Filter by VPA</label>
+        <input id="dashboardUserId" placeholder="payer@issuer or payee@acquirer" />
+      </div>
+      <div class="dashboard-filter">
+        <label for="dashboardLimit">Recent Tx Limit</label>
+        <select id="dashboardLimit">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+      <button id="refreshDashboardBtn">Refresh Dashboard</button>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span>Total Transactions</span>
+        <strong id="kpiTotalTx">0</strong>
+      </div>
+      <div class="kpi-card">
+        <span>Last 24 Hours</span>
+        <strong id="kpiLast24h">0</strong>
+      </div>
+      <div class="kpi-card">
+        <span>Success Rate</span>
+        <strong id="kpiSuccessRate">0%</strong>
+      </div>
+      <div class="kpi-card">
+        <span>Completed GMV</span>
+        <strong id="kpiCompletedAmount">0</strong>
+      </div>
+    </div>
+    <div class="kpi-charts-row" style="margin-top: 24px; display: flex; gap: 24px; flex-wrap: wrap;">
+      <div style="flex:1; min-width:260px;">
+        <h3 style="margin-bottom:4px;">Transaction Volume</h3>
+        <canvas id="chartTxVolume" height="120"></canvas>
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <h3 style="margin-bottom:4px;">Error Rate</h3>
+        <canvas id="chartErrorRate" height="120"></canvas>
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <h3 style="margin-bottom:4px;">GMV</h3>
+        <canvas id="chartGmv" height="120"></canvas>
+      </div>
+    </div>
+    <div style="margin-top: 12px">
+      <h3>State Breakdown</h3>
+      <div id="stateBreakdown" class="chips"></div>
+    </div>
+    <div style="margin-top: 12px">
+      <h3>Recent Transactions</h3>
+      <div class="table-wrap">
+        <table class="tx-table">
+          <thead>
+          <tr>
+            <th>Transaction ID</th>
+            <th>Payer</th>
+            <th>Payee</th>
+            <th>Amount</th>
+            <th>State</th>
+            <th>Source</th>
+            <th>Processing (ms)</th>
+          </tr>
+          </thead>
+          <tbody id="dashboardTxBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <div class="row">
     <div class="card">
@@ -42,6 +116,16 @@
         <button class="secondary scenarioBtn" data-scenario="SWITCH_FAIL" data-enable="false">Disable SWITCH_FAIL</button>
         <button class="secondary scenarioBtn" data-scenario="REVERSAL_FAIL" data-enable="true">Enable REVERSAL_FAIL</button>
         <button class="secondary scenarioBtn" data-scenario="REVERSAL_FAIL" data-enable="false">Disable REVERSAL_FAIL</button>
+        <button class="secondary scenarioBtn" data-scenario="SWITCH_TIMEOUT" data-enable="true">Enable SWITCH_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="SWITCH_TIMEOUT" data-enable="false">Disable SWITCH_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="DEBIT_TIMEOUT" data-enable="true">Enable DEBIT_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="DEBIT_TIMEOUT" data-enable="false">Disable DEBIT_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="CREDIT_TIMEOUT" data-enable="true">Enable CREDIT_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="CREDIT_TIMEOUT" data-enable="false">Disable CREDIT_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="REVERSAL_TIMEOUT" data-enable="true">Enable REVERSAL_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="REVERSAL_TIMEOUT" data-enable="false">Disable REVERSAL_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="NETWORK_TIMEOUT" data-enable="true">Enable NETWORK_TIMEOUT</button>
+        <button class="secondary scenarioBtn" data-scenario="NETWORK_TIMEOUT" data-enable="false">Disable NETWORK_TIMEOUT</button>
       </div>
     </div>
   </div>

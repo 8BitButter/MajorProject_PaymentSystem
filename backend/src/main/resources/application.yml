@@ -29,11 +29,21 @@ management:
       exposure:
         include: health,info,metrics,prometheus
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} correlationId=%X{correlationId:-na} transactionId=%X{transactionId:-na} - %msg%n"
+
 dips:
   scheduler:
+    enabled: true
     small-value-threshold: 500.00
     high-load-normal-pause-ms: 1200
     high-burst-before-normal: 3
+    queue-poll-delay-ms: 120
+    max-retry-attempts: 8
+    operation-timeout-ms: 3000
+    operation-max-retries: 2
+    operation-retry-backoff-ms: 1000
   sms:
     aes-key-base64: ${DIPS_SMS_AES_KEY_BASE64:MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=}
     max-skew-seconds: 300

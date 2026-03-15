@@ -8,3 +8,7 @@ Thumbs.db
 .env
 .mvn/wrapper/maven-wrapper.jar
 
+# Maven and Visual Studio
+.m2/
+.vs/
+
